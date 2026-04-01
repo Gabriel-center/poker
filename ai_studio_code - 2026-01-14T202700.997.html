@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>POKER ANALYZER 103 SMART-LOCK</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-screen: #40318d;
+            --surface: #c0c0c0;
+            --light: #ffffff;
+            --dark: #808080;
+            --darker: #404040;
+            --font-ui: 'VT323', monospace;
+            --font-data: 'Courier Prime', monospace;
+            --p-green: #00ff00;
+            --p-red: #ff3333;
+            --p-blue: #3333ff;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-screen);
+            font-family: var(--font-ui);
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            color: #000;
+        }
+
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .outset {
+            border-top: 2px solid var(--light);
+            border-left: 2px solid var(--light);
+            border-right: 2px solid var(--darker);
+            border-bottom: 2px solid var(--darker);
+            background: var(--surface);
+        }
+
+        .inset {
+            border-top: 2px solid var(--darker);
+            border-left: 2px solid var(--darker);
+            border-right: 2px solid var(--light);
+            border-bottom: 2px solid var(--light);
+            background: var(--light);
+        }
+
+        .app-window {
+            flex: 1; display: flex; flex-direction: column;
+            width: 100%; max-width: 600px; margin: 0 auto;
+            background: var(--surface);
+            position: relative;
+        }
+
+        /* HUD */
+        .hud-display {
+            background: #000;
+            color: var(--p-green);
+            padding: 10px;
+            font-family: var(--font-data);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 110px;
+            border-bottom: 4px solid #444;
+            flex-shrink: 0;
+        }
+
+        .hud-header {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px dashed #333; padding-bottom: 5px; margin-bottom: 5px;
+        }
+
+        .main-stat { font-size: 28px; line-height: 1; text-shadow: 0 0 5px var(--p-green); }
+        .sub-stat { font-size: 16px; color: #888; }
+        .hud-log { font-size: 14px; color: #ccc; white-space: pre-wrap; height: 40px; overflow: hidden; display: flex; align-items: center; }
+
+        .progress-track { width: 100%; height: 6px; background: #333; margin-top: 5px; display: none; }
+        .progress-fill { width: 0%; height: 100%; background: var(--p-green); transition: width 0.1s; }
+
+        .menu-btn {
+            background: #000; border: 1px solid var(--p-green); color: var(--p-green);
+            padding: 2px 8px; font-family: var(--font-ui); font-size: 18px; cursor: pointer;
+        }
+
+        /* MAIN CONTENT */
+        .game-surface {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            gap: 10px;
+            overflow-y: auto;
+            align-items: center;
+        }
+
+        .config-bar {
+            width: 100%; display: flex; justify-content: space-between; align-items: center;
+            padding: 5px 10px; background: #ddd; border: 1px solid #888;
+            flex-shrink: 0;
+        }
+        .config-label { font-size: 20px; font-weight: bold; }
+        .config-input { width: 50px; text-align: center; font-family: var(--font-data); font-size: 20px; }
+
+        .table-area {
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+            padding: 10px; background: #35654d; border: 4px solid #4a3c26;
+            box-shadow: inset 0 0 10px #000;
+            width: 100%; border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .flop-row { display: flex; gap: 8px; }
+        .turn-river-row { display: flex; gap: 8px; }
+
+        .hero-area {
+            width: 100%; flex: 1; display: flex; justify-content: center; align-items: flex-start;
+            padding-top: 10px; background: transparent;
+            min-height: 140px;
+        }
+        .hero-container {
+            display: flex; gap: 15px; padding: 15px;
+            background: rgba(0,0,0,0.05); border: 2px dashed #999; border-radius: 10px;
+        }
+
+        /* CARD STYLES */
+        .poker-card {
+            background: #fff; border: 2px solid #000;
+            position: relative; display: flex; flex-direction: column;
+            box-shadow: 3px 3px 0 rgba(0,0,0,0.4);
+            transition: transform 0.1s;
+        }
+        
+        @keyframes cardFlip {
+            0% { transform: scaleX(1); background: #fff; }
+            40% { transform: scaleX(0.1); background: #ddd; }
+            60% { transform: scaleX(0.1); background: #fff; }
+            100% { transform: scaleX(1); background: repeating-linear-gradient(45deg, #eee, #eee 5px, #fff 5px, #fff 10px); }
+        }
+
+        .anim-flip { animation: cardFlip 0.3s ease-in-out forwards; }
+        .poker-card.empty { background: repeating-linear-gradient(45deg, #eee, #eee 5px, #fff 5px, #fff 10px); }
+        
+        .card-small { width: 72px; height: 105px; } 
+        .card-big { width: 90px; height: 130px; border-width: 3px; }
+
+        .card-display { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+        .rank-disp { font-family: var(--font-data); font-weight: bold; line-height: 1; }
+        .suit-disp { line-height: 0.8; }
+        
+        .card-small .rank-disp { font-size: 38px; margin-top: -5px; }
+        .card-small .suit-disp { font-size: 42px; }
+        .card-big .rank-disp { font-size: 48px; margin-top: -10px; }
+        .card-big .suit-disp { font-size: 60px; }
+
+        .suit-red { color: #d00000; }
+        .suit-black { color: #000; }
+        .unknown { color: #aaa; }
+
+        .hit-zone { position: absolute; left: 0; width: 100%; height: 50%; z-index: 10; }
+        .hit-top { top: 0; }
+        .hit-btm { bottom: 0; }
+
+        .action-footer {
+            padding: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+            background: var(--surface); border-top: 2px solid #fff;
+            flex-shrink: 0;
+        }
+        .retro-btn {
+            padding: 15px; font-family: var(--font-ui); font-size: 20px; text-transform: uppercase;
+            background: var(--surface); cursor: pointer; border: 2px solid #000;
+        }
+        .retro-btn:active { transform: translate(2px, 2px); background: #aaa; }
+
+        .sidebar {
+            position: fixed; top: 0; left: 0; height: 100%; width: 90%; max-width: 400px;
+            background: var(--surface); z-index: 5000;
+            transform: translateX(-100%); transition: transform 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+            border-right: 4px solid #000; display: flex; flex-direction: column;
+            box-shadow: 1000px 0 0 rgba(0,0,0,0.5);
+        }
+        .sidebar.open { transform: translateX(0); }
+
+        .stat-list { overflow-y: auto; flex: 1; padding: 10px; background: #e0e0e0; }
+        .stat-row {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #fff; margin-bottom: 6px; padding: 8px;
+            border: 1px solid #888; box-shadow: 2px 2px 0 #bbb;
+            font-family: var(--font-data); font-size: 14px;
+        }
+        .stat-name { flex: 1; font-weight: bold; color: #000; font-size: 16px; }
+        .prob-group { display: flex; gap: 10px; text-align: right; }
+        .prob-val { width: 50px; font-weight: bold; }
+        .p-hero { color: #00aa00; text-shadow: 1px 1px 0 #cfc; }
+        .p-vill { color: #cc0000; text-shadow: 1px 1px 0 #fcc; }
+
+        /* GRAPH MODAL */
+        #graphModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 6000; display: none; background: rgba(0,0,0,0.85);
+            justify-content: center; align-items: center;
+        }
+        #graphModal.active { display: flex; }
+        .graph-window { width: 95%; max-width: 500px; height: 350px; background: var(--surface); display: flex; flex-direction: column; }
+        .graph-content { flex: 1; background: #000; position: relative; padding: 10px; }
+        #distCanvas { width: 100%; height: 100%; display: block; }
+
+        #gestureLayer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 9000; display: none; background: rgba(0,0,0,0.3);
+        }
+        #gestureLayer.active { display: block; }
+
+        .g-btn {
+            position: absolute; background: #fff; border: 2px solid #000;
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-data); font-weight: bold;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.5); z-index: 9100;
+        }
+        .g-btn.active-hover { background: #000080; color: #fff; transform: scale(1.1); z-index: 9200; }
+        .g-btn.disabled { opacity: 0.2; pointer-events: none; filter: grayscale(100%); background: #ccc; }
+
+        .btn-rank { width: 50px; height: 50px; font-size: 22px; }
+        .btn-ace {
+            font-size: 32px; background: #ffffcc; border: 2px solid #bba000;
+            box-shadow: 0 0 10px 2px rgba(255, 255, 0, 0.6), 4px 4px 0 rgba(0,0,0,0.5);
+            color: #554400; height: 50px;
+        }
+        .btn-ace.active-hover { background: #ffcc00; color: #000; box-shadow: 0 0 15px 5px rgba(255, 255, 0, 0.9); }
+        .btn-suit { width: 56px; height: 56px; font-size: 32px; }
+
+    </style>
+</head>
+<body>
+
+<div class="scanlines"></div>
+<div id="gestureLayer"></div>
+
+<!-- Graph Modal -->
+<div id="graphModal">
+    <div class="graph-window outset">
+        <div class="hud-header inset" style="background:var(--surface); padding:8px;">
+            <span>DISTRIBUIÇÃO DE FORÇA</span>
+            <button class="menu-btn" onclick="toggleGraph()">X</button>
+        </div>
+        <div class="graph-content inset">
+            <canvas id="distCanvas"></canvas>
+            <div style="position:absolute; top:10px; right:10px; font-size:14px; font-family:var(--font-data); text-align:right; font-weight:bold;">
+                <div style="color:#00ffff; text-shadow:0 0 5px #00ffff">━ EU</div>
+                <div style="color:#ff0055; text-shadow:0 0 5px #ff0055">━ OUTRO</div>
+                <div style="color:#888888; font-size:12px">■ EMPATE</div>
+            </div>
+            <!-- Labels for X Axis -->
+            <div style="position:absolute; bottom:2px; left:10px; color:#666; font-size:10px; font-family:var(--font-ui);">FRACA</div>
+            <div style="position:absolute; bottom:2px; right:10px; color:#666; font-size:10px; font-family:var(--font-ui);">FORTE</div>
+        </div>
+    </div>
+</div>
+
+<aside class="sidebar" id="sidebar">
+    <div class="hud-header" style="background:var(--surface); color:#000; padding:10px;">
+        <span style="font-size:24px; font-weight:bold;">ESTATÍSTICAS</span>
+        <button class="menu-btn" style="background:#cc0000; color:#fff; border-color:#000;" onclick="toggleMenu()">X</button>
+    </div>
+    <div style="padding: 5px 10px; font-size:12px; display:flex; justify-content:space-between; background:#ccc;">
+        <span>MÃO (Pelo menos...)</span>
+        <span><b style="color:#008800">EU</b> vs <b style="color:#cc0000">OUTRO</b></span>
+    </div>
+    <div class="stat-list" id="statList"></div>
+</aside>
+
+<div class="app-window outset">
+    <div class="hud-display inset">
+        <div class="hud-header">
+            <span>SISTEMA TÁTICO</span>
+            <button class="menu-btn" onclick="toggleMenu()">VER DETALHES</button>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+            <div>
+                <div class="sub-stat">CHANCE DE VITÓRIA</div>
+                <div class="main-stat" id="winRateDisp">0.0%</div>
+            </div>
+            <div style="text-align:right;">
+                <div class="sub-stat">EMPATE</div>
+                <div class="main-stat" style="color:#aaa; font-size:22px;" id="tieRateDisp">0.0%</div>
+            </div>
+        </div>
+        <div>
+            <div class="hud-log" id="sysLog">> SISTEMA PRONTO.</div>
+            <div class="progress-track" id="progTrack"><div class="progress-fill" id="progFill"></div></div>
+        </div>
+    </div>
+
+    <div class="game-surface">
+        <div class="table-area outset">
+            <span style="color:#e6c288; font-weight:bold; letter-spacing:1px; margin-bottom:5px; font-size:14px;">MESA</span>
+            <div class="flop-row">
+                <div class="poker-card card-small empty" id="card_c1">
+                    <div class="hit-zone hit-top" data-slot="c1" data-type="rank"></div>
+                    <div class="hit-zone hit-btm" data-slot="c1" data-type="suit"></div>
+                    <div class="card-display"></div>
+                </div>
+                <div class="poker-card card-small empty" id="card_c2">
+                    <div class="hit-zone hit-top" data-slot="c2" data-type="rank"></div>
+                    <div class="hit-zone hit-btm" data-slot="c2" data-type="suit"></div>
+                    <div class="card-display"></div>
+                </div>
+                <div class="poker-card card-small empty" id="card_c3">
+                    <div class="hit-zone hit-top" data-slot="c3" data-type="rank"></div>
+                    <div class="hit-zone hit-btm" data-slot="c3" data-type="suit"></div>
+                    <div class="card-display"></div>
+                </div>
+            </div>
+            <div class="turn-river-row">
+                <div class="poker-card card-small empty" id="card_c4">
+                    <div class="hit-zone hit-top" data-slot="c4" data-type="rank"></div>
+                    <div class="hit-zone hit-btm" data-slot="c4" data-type="suit"></div>
+                    <div class="card-display"></div>
+                </div>
+                <div class="poker-card card-small empty" id="card_c5">
+                    <div class="hit-zone hit-top" data-slot="c5" data-type="rank"></div>
+                    <div class="hit-zone hit-btm" data-slot="c5" data-type="suit"></div>
+                    <div class="card-display"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-bar inset">
+            <span class="config-label">OPONENTES:</span>
+            <input type="number" id="playerCount" class="config-input" value="3" min="1" max="9" onchange="runAnalysis()">
+        </div>
+
+        <div class="hero-area">
+            <div class="hero-container">
+                <div class="poker-card card-big empty" id="card_h1">
+                    <div class="hit-zone hit-top" data-slot="h1" data-type="rank"></div>
+                    <div class="hit-zone hit-btm" data-slot="h1" data-type="suit"></div>
+                    <div class="card-display"></div>
+                </div>
+                <div class="poker-card card-big empty" id="card_h2">
+                    <div class="hit-zone hit-top" data-slot="h2" data-type="rank"></div>
+                    <div class="hit-zone hit-btm" data-slot="h2" data-type="suit"></div>
+                    <div class="card-display"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="action-footer">
+        <button class="retro-btn" onclick="resetTable()">RESETAR</button>
+        <button class="retro-btn" onclick="toggleGraph()" style="color:#5555ff;">GRÁFICO</button>
+        <button class="retro-btn" onclick="runAnalysis(true)" style="font-weight:900; color:#000080;">CALCULAR</button>
+    </footer>
+</div>
+
+<script>
+    /* --- AUDIO ENGINE --- */
+    const AudioSys = {
+        ctx: null,
+        init: function() {
+            if(!this.ctx) {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if(this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+        },
+        tick: function() {
+            if(!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, t);
+            osc.frequency.exponentialRampToValueAtTime(100, t + 0.03);
+            gain.gain.setValueAtTime(0.05, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+            osc.start(t);
+            osc.stop(t + 0.04);
+        },
+        flip: function() {
+            if(!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const noise = this.ctx.createBufferSource();
+            const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.1, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for(let i=0; i<data.length; i++) data[i] = Math.random() * 2 - 1;
+            noise.buffer = buffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.value = 800;
+            const gain = this.ctx.createGain();
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+            noise.start(t);
+        },
+        result: function(improved) {
+            if(!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            if(improved) {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, t);
+                osc.frequency.exponentialRampToValueAtTime(1760, t + 0.1);
+                gain.gain.setValueAtTime(0.0, t);
+                gain.gain.linearRampToValueAtTime(0.1, t + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+                osc.start(t);
+                osc.stop(t + 0.6);
+            } else {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.linearRampToValueAtTime(80, t + 0.2);
+                gain.gain.setValueAtTime(0.0, t);
+                gain.gain.linearRampToValueAtTime(0.15, t + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+                osc.start(t);
+                osc.stop(t + 0.4);
+            }
+        }
+    };
+
+    // Global Audio Unlock
+    document.body.addEventListener('touchstart', () => AudioSys.init(), {once:true});
+    document.body.addEventListener('mousedown', () => AudioSys.init(), {once:true});
+
+    /* --- CONSTANTS & STATE --- */
+    const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+    const SUITS = [
+        { id: 'h', sym: '♥', col: 'suit-red' },
+        { id: 'd', sym: '♦', col: 'suit-red' },
+        { id: 'c', sym: '♣', col: 'suit-black' },
+        { id: 's', sym: '♠', col: 'suit-black' }
+    ];
+    const HAND_NAMES = ["High Card", "Pair", "Two Pair", "3 of a Kind", "Straight", "Flush", "Full House", "4 of a Kind", "St. Flush", "Royal Flush"];
+
+    let state = { h1: {}, h2: {}, c1: {}, c2: {}, c3: {}, c4: {}, c5: {} };
+    let previousWinRate = -1;
+    let currentHoverBtn = null;
+    let lastTapTime = 0;
+    let lastTapSlot = null;
+
+    let graphData = {
+        hero: new Array(50).fill(0),
+        vill: new Array(50).fill(0),
+        tie: new Array(50).fill(0)
+    };
+
+    /* --- GESTURE SYSTEM --- */
+    let isDragging = false;
+    let activeSlot = null;
+    let gestureMode = null;
+    let overlay = document.getElementById('gestureLayer');
+
+    document.querySelectorAll('.hit-zone').forEach(z => {
+        z.addEventListener('touchstart', startGesture, {passive:false});
+        z.addEventListener('mousedown', startGesture);
+    });
+
+    window.addEventListener('touchmove', handleMove, {passive:false});
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('touchend', handleEnd);
+    window.addEventListener('mouseup', handleEnd);
+
+    function startGesture(e) {
+        AudioSys.init(); // Redundant backup init
+        const t = e.target;
+        const slot = t.dataset.slot;
+        const now = Date.now();
+
+        if (slot === lastTapSlot && (now - lastTapTime) < 300) {
+            e.preventDefault();
+            triggerFlip(slot);
+            lastTapTime = 0;
+            return;
+        }
+        lastTapTime = now;
+        lastTapSlot = slot;
+
+        e.preventDefault();
+        activeSlot = slot;
+        gestureMode = t.dataset.type;
+        const cardRect = t.parentElement.getBoundingClientRect();
+        buildGrid(cardRect, gestureMode);
+        overlay.classList.add('active');
+        isDragging = true;
+        currentHoverBtn = null;
+    }
+
+    function triggerFlip(slot) {
+        AudioSys.flip();
+        const cardEl = document.getElementById('card_' + slot);
+        cardEl.classList.add('anim-flip');
+        setTimeout(() => {
+            state[slot] = {};
+            renderCard(slot);
+            runAnalysis(false);
+            setTimeout(() => {
+                cardEl.classList.remove('anim-flip');
+            }, 300);
+        }, 150);
+    }
+
+    function getUsedSuitsForRank(rank, ignoreSlot) {
+        const used = [];
+        for (let k in state) {
+            if (k !== ignoreSlot && state[k].rank === rank && state[k].suit) {
+                used.push(state[k].suit);
+            }
+        }
+        return used;
+    }
+
+    function isCollision(r, s, ignoreSlot) {
+        for(let k in state) {
+            if(k === ignoreSlot) continue;
+            const c = state[k];
+            if(c.rank === r && c.suit === s) return true;
+        }
+        return false;
+    }
+
+    function buildGrid(rect, mode) {
+        overlay.innerHTML = '';
+        const cx = rect.left + rect.width/2;
+        const cy = rect.top + rect.height/2;
+        const frag = document.createDocumentFragment();
+        
+        if(mode === 'rank') {
+            const spacing = 55;
+            const startX = cx - (165/2); 
+            const currentSuit = state[activeSlot].suit;
+
+            ['K','Q','J','10'].forEach((v,i) => {
+                const offset = (i - 1.5) * spacing;
+                const btn = createBtn(frag, v, cx + offset, rect.top - 60, 'rank');
+                const r = (v==='10'?'T':v);
+                
+                // Logic 1: All 4 used
+                if (getUsedSuitsForRank(r, activeSlot).length === 4) btn.classList.add('disabled');
+                // Logic 2: Specific collision
+                if (currentSuit && isCollision(r, currentSuit, activeSlot)) btn.classList.add('disabled');
+            });
+
+            ['9','8','7','6'].forEach((v,i) => {
+                const btn = createBtn(frag, v, rect.left - 60, rect.top + 25 + i*spacing, 'rank');
+                if (getUsedSuitsForRank(v, activeSlot).length === 4) btn.classList.add('disabled');
+                if (currentSuit && isCollision(v, currentSuit, activeSlot)) btn.classList.add('disabled');
+            });
+
+            ['5','4','3','2'].forEach((v,i) => {
+                const btn = createBtn(frag, v, rect.right + 60, rect.top + 25 + i*spacing, 'rank');
+                if (getUsedSuitsForRank(v, activeSlot).length === 4) btn.classList.add('disabled');
+                if (currentSuit && isCollision(v, currentSuit, activeSlot)) btn.classList.add('disabled');
+            });
+
+            const gap = (rect.right + 60 - 25) - (rect.left - 60 + 25);
+            const aceW = gap - 10;
+            const b = document.createElement('div');
+            b.className = `g-btn btn-ace`;
+            b.innerText = "A";
+            b.style.width = aceW + 'px';
+            b.style.left = (cx - aceW/2) + 'px';
+            b.style.top = (rect.top + 25 + (3 * spacing) - 25) + 'px';
+            b.dataset.val = 'A';
+            if (getUsedSuitsForRank('A', activeSlot).length === 4) b.classList.add('disabled');
+            if (currentSuit && isCollision('A', currentSuit, activeSlot)) b.classList.add('disabled');
+            frag.appendChild(b);
+
+        } else {
+            const dist = 70;
+            const rank = state[activeSlot].rank;
+            const used = rank ? getUsedSuitsForRank(rank, activeSlot) : [];
+            const currentRank = state[activeSlot].rank;
+
+            const add = (sym,x,y,id,col) => {
+                const b = createBtn(frag, sym, x, y, 'suit', id, col);
+                // Logic 1: Suit used for this rank?
+                if(used.includes(id)) b.classList.add('disabled');
+                // Logic 2: (Redundant if getUsedSuits works correctly, but safe)
+                if(currentRank && isCollision(currentRank, id, activeSlot)) b.classList.add('disabled');
+            }
+            add('♠', cx, cy-dist, 's', 'suit-black');
+            add('♣', cx, cy+dist, 'c', 'suit-black');
+            add('♥', cx-dist, cy, 'h', 'suit-red');
+            add('♦', cx+dist, cy, 'd', 'suit-red');
+        }
+        overlay.appendChild(frag);
+    }
+
+    function createBtn(parent, txt, x, y, type, val, colClass) {
+        const b = document.createElement('div');
+        b.className = `g-btn ${type==='rank'?'btn-rank':'btn-suit'} ${colClass||''}`;
+        b.innerText = txt;
+        b.style.left = (x - (type==='rank'?25:28)) + 'px';
+        b.style.top = (y - (type==='rank'?25:28)) + 'px';
+        b.dataset.val = val || txt;
+        parent.appendChild(b);
+        return b;
+    }
+
+    function handleMove(e) {
+        if(!isDragging) return;
+        const x = e.touches?e.touches[0].clientX:e.clientX;
+        const y = e.touches?e.touches[0].clientY:e.clientY;
+        document.querySelectorAll('.g-btn').forEach(b => b.classList.remove('active-hover'));
+        const hit = document.elementFromPoint(x,y);
+        
+        if(hit && hit.classList.contains('g-btn') && !hit.classList.contains('disabled')) {
+            hit.classList.add('active-hover');
+            if(hit !== currentHoverBtn) {
+                AudioSys.tick();
+                currentHoverBtn = hit;
+            }
+        } else {
+            currentHoverBtn = null;
+        }
+    }
+
+    function handleEnd(e) {
+        if(!isDragging) return;
+        isDragging = false;
+        overlay.classList.remove('active');
+        const active = document.querySelector('.g-btn.active-hover');
+        if(active && activeSlot) {
+            let v = active.dataset.val;
+            if(gestureMode==='rank') {
+                if(v==='10') v='T';
+                state[activeSlot].rank = v;
+                // Auto fill if only 1 suit left
+                const used = getUsedSuitsForRank(v, activeSlot);
+                if (used.length === 3) {
+                    const allSuits = ['h','d','c','s'];
+                    const remaining = allSuits.find(s => !used.includes(s));
+                    if(remaining) state[activeSlot].suit = remaining;
+                }
+            } else {
+                state[activeSlot].suit = v;
+            }
+            renderCard(activeSlot);
+            runAnalysis(false); 
+        }
+        activeSlot = null;
+    }
+
+    /* --- LOGIC & RENDERING --- */
+    function renderCard(id) {
+        const c = state[id];
+        const disp = document.querySelector(`#card_${id} .card-display`);
+        const p = disp.parentElement;
+        if(!c.rank && !c.suit) {
+            p.classList.add('empty'); disp.innerHTML = ''; return;
+        }
+        p.classList.remove('empty');
+        let rh = c.rank || '?'; if(rh==='T') rh='10';
+        let sh = '?'; let sc = '';
+        if(c.suit) {
+            const s = SUITS.find(x=>x.id===c.suit);
+            sh = s.sym; sc = s.col;
+        } else { sc = 'unknown'; }
+        if(!c.rank) rh = '<span class="unknown">?</span>';
+        disp.innerHTML = `<span class="rank-disp ${sc}">${rh}</span><span class="suit-disp ${sc}">${sh}</span>`;
+    }
+
+    function resetTable() {
+        AudioSys.init();
+        AudioSys.flip();
+        const slots = ['h1','h2','c1','c2','c3','c4','c5'];
+        slots.forEach(id => {
+            const el = document.getElementById('card_' + id);
+            el.classList.add('anim-flip');
+        });
+        setTimeout(() => {
+            for(let k in state) state[k]={};
+            slots.forEach(renderCard);
+            previousWinRate = -1;
+            updateUI(0,0, true);
+            renderStats({hero:[], vill:[]});
+            graphData = { hero: new Array(50).fill(0), vill: new Array(50).fill(0), tie: new Array(50).fill(0) };
+            if(document.getElementById('graphModal').classList.contains('active')) drawGraph();
+            setTimeout(() => {
+                slots.forEach(id => {
+                    const el = document.getElementById('card_' + id);
+                    el.classList.remove('anim-flip');
+                });
+            }, 150);
+        }, 150);
+    }
+
+    function toggleMenu() { document.getElementById('sidebar').classList.toggle('open'); }
+    function toggleGraph() { 
+        const m = document.getElementById('graphModal');
+        m.classList.toggle('active');
+        if(m.classList.contains('active')) drawGraph();
+    }
+
+    function getVal(r) { return RANKS.indexOf(r)+2; }
+
+    function solveHand(cards) {
+        cards.sort((a,b)=>b.val - a.val);
+        const vals = cards.map(c=>c.val);
+        const suits = cards.map(c=>c.suit);
+        const sC={}; let flS=null;
+        suits.forEach(s=>sC[s]=(sC[s]||0)+1);
+        for(let k in sC) if(sC[k]>=5) flS=k;
+        const u = [...new Set(vals)];
+        let str=-1;
+        for(let i=0; i<=u.length-5; i++) if(u[i]-u[i+4]===4) str=Math.max(str, u[i]);
+        if(u.includes(14)&&u.includes(5)&&u.includes(4)&&u.includes(3)&&u.includes(2)) str=Math.max(str, 5);
+        const vC={}; vals.forEach(v=>vC[v]=(vC[v]||0)+1);
+        const counts = Object.values(vC);
+        const four=counts.includes(4), three=counts.includes(3), pairs=counts.filter(x=>x===2).length;
+        let type=0, tie=vals[0];
+        if(flS && str>-1) {
+            const fCards = cards.filter(c=>c.suit===flS).map(c=>c.val);
+            const fu = [...new Set(fCards)];
+            let sf=-1;
+            for(let i=0; i<=fu.length-5; i++) if(fu[i]-fu[i+4]===4) sf=Math.max(sf, fu[i]);
+            if(fu.includes(14)&&fu.includes(2)) sf=Math.max(sf, 5);
+            if(sf>-1) { type=(sf===14?9:8); tie=sf; } else type=5;
+        } else if(four) type=7;
+        else if(three && pairs>=1) type=6;
+        else if(flS) type=5;
+        else if(str>-1) { type=4; tie=str; }
+        else if(three) type=3;
+        else if(pairs>=2) type=2;
+        else if(pairs===1) type=1;
+        return { score: type*1000000+tie, typeIdx: type };
+    }
+
+    let calcJob = null; 
+    function runAnalysis(force = false) {
+        if(calcJob) clearTimeout(calcJob); 
+        const log = document.getElementById('sysLog');
+        const progTrack = document.getElementById('progTrack');
+        const progFill = document.getElementById('progFill');
+        const getC = (k) => {
+            const c = state[k];
+            if(!c.rank && !c.suit) return null;
+            return { r: c.rank, s: c.suit, fixed: (c.rank&&c.suit) };
+        }
+        const h1=getC('h1'), h2=getC('h2');
+        if(!h1 && !h2) { 
+            log.innerText = "> INSIRA CARTAS"; 
+            progTrack.style.display = 'none';
+            return; 
+        }
+        
+        progTrack.style.display = 'block';
+        progFill.style.width = '0%';
+        log.innerText = "> PROCESSANDO...";
+        
+        const board = ['c1','c2','c3','c4','c5'].map(getC).filter(x=>x);
+        const pCount = parseInt(document.getElementById('playerCount').value);
+        const TARGET_SIMS = 50000;
+        const CHUNK_SIZE = 1500;
+        let simCount = 0, wins = 0, ties = 0;
+        const heroStats = new Array(10).fill(0), villStats = new Array(10).fill(0);
+        
+        graphData.hero.fill(0); graphData.vill.fill(0); graphData.tie.fill(0);
+
+        const baseDeck = [];
+        SUITS.forEach(s=>RANKS.forEach(r=>baseDeck.push({rank:r, suit:s.id})));
+        const globalUsed = [h1,h2,...board].filter(x=>x&&x.fixed);
+        const cleanDeck = baseDeck.filter(d => !globalUsed.some(u=>u.r===d.rank && u.s===d.suit));
+
+        const processChunk = () => {
+            const limit = Math.min(CHUNK_SIZE, TARGET_SIMS - simCount);
+            for(let i=0; i<limit; i++) {
+                let deck = [...cleanDeck];
+                const fill = (c) => {
+                    if(c && c.fixed) return {val:getVal(c.r), suit:c.s};
+                    const cands = deck.filter(d => (!c || !c.r || d.rank===c.r) && (!c || !c.s || d.suit===c.s));
+                    if(cands.length===0) return {val:2, suit:'h'};
+                    const pick = cands[Math.floor(Math.random()*cands.length)];
+                    deck.splice(deck.indexOf(pick), 1);
+                    return {val:getVal(pick.rank), suit:pick.suit};
+                }
+                const myH = [];
+                if(h1) myH.push(fill(h1));
+                if(h2) myH.push(fill(h2));
+                const comm = board.map(b=>fill(b));
+                while(comm.length<5) comm.push(fill(null));
+                const myRes = solveHand([...myH, ...comm]);
+                heroStats[myRes.typeIdx]++;
+                
+                const hBucket = Math.min(49, Math.floor((myRes.score / 9200000) * 50));
+                graphData.hero[hBucket]++;
+
+                let bestOpScore = -1, bestOpType = 0;
+                for(let p=0; p<pCount; p++) {
+                    const opH = [fill(null), fill(null)];
+                    const opRes = solveHand([...opH, ...comm]);
+                    if(opRes.score > bestOpScore) {
+                        bestOpScore = opRes.score;
+                        bestOpType = opRes.typeIdx;
+                    }
+                }
+                villStats[bestOpType]++;
+                const vBucket = Math.min(49, Math.floor((bestOpScore / 9200000) * 50));
+                graphData.vill[vBucket]++;
+
+                if(myRes.score > bestOpScore) wins++;
+                else if(myRes.score === bestOpScore) {
+                    ties++;
+                    graphData.tie[hBucket]++;
+                }
+            }
+            simCount += limit;
+            const pct = (simCount/TARGET_SIMS)*100;
+            progFill.style.width = pct + '%';
+            const curW = ((wins/simCount)*100).toFixed(1);
+            const curT = ((ties/simCount)*100).toFixed(1);
+            document.getElementById('winRateDisp').innerText = `${curW}%`;
+            document.getElementById('tieRateDisp').innerText = `${curT}%`;
+
+            if(simCount < TARGET_SIMS) {
+                calcJob = setTimeout(processChunk, 0);
+            } else {
+                log.innerText = `> ANÁLISE COMPLETA.`;
+                setTimeout(() => { progTrack.style.display = 'none'; }, 500);
+                
+                const finalWinRate = parseFloat(curW);
+                if(previousWinRate !== -1 && !force) {
+                    if(finalWinRate > previousWinRate) AudioSys.result(true);
+                    else if(finalWinRate < previousWinRate) AudioSys.result(false);
+                }
+                previousWinRate = finalWinRate;
+
+                let hSum=0, vSum=0;
+                const hCum=[], vCum=[];
+                for(let i=9; i>=0; i--) {
+                    hSum += heroStats[i];
+                    vSum += villStats[i];
+                    hCum[i] = ((hSum/simCount)*100).toFixed(1);
+                    vCum[i] = ((vSum/simCount)*100).toFixed(1);
+                }
+                renderStats({hero:hCum, vill:vCum});
+                
+                if(document.getElementById('graphModal').classList.contains('active')) drawGraph();
+            }
+        };
+        processChunk();
+    }
+
+    function updateUI(w, t, reset=false) {
+        document.getElementById('winRateDisp').innerText = reset ? "0.0%" : `${w}%`;
+        document.getElementById('tieRateDisp').innerText = reset ? "0.0%" : `${t}%`;
+        if(reset) {
+            document.getElementById('progTrack').style.display = 'none';
+            document.getElementById('sysLog').innerText = "> MESA LIMPA.";
+        }
+    }
+
+    function renderStats(data) {
+        const list = document.getElementById('statList');
+        list.innerHTML = '';
+        for(let i=9; i>=0; i--) {
+            const row = document.createElement('div');
+            row.className = 'stat-row';
+            row.innerHTML = `
+                <div class="stat-name">${HAND_NAMES[i]}</div>
+                <div class="prob-group">
+                    <span class="prob-val p-hero">${data.hero[i]||'0.0'}%</span>
+                    <span class="prob-val p-vill">${data.vill[i]||'0.0'}%</span>
+                </div>`;
+            list.appendChild(row);
+        }
+    }
+    
+    function smoothArray(data, iterations = 2) {
+        let arr = [...data];
+        for (let it = 0; it < iterations; it++) {
+            let next = [];
+            for (let i = 0; i < arr.length; i++) {
+                let prev = arr[i - 1] || arr[i];
+                let curr = arr[i];
+                let post = arr[i + 1] || arr[i];
+                next[i] = (prev + 2 * curr + post) / 4;
+            }
+            arr = next;
+        }
+        return arr;
+    }
+    
+    function drawGraph() {
+        const c = document.getElementById('distCanvas');
+        const ctx = c.getContext('2d');
+        const w = c.clientWidth;
+        const h = c.clientHeight;
+        c.width = w; c.height = h;
+
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0,0,w,h);
+
+        ctx.strokeStyle = "#222";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for(let i=1; i<4; i++) {
+            ctx.moveTo(0, h*i/4); ctx.lineTo(w, h*i/4);
+            ctx.moveTo(w*i/4, 0); ctx.lineTo(w*i/4, h);
+        }
+        ctx.stroke();
+
+        const sHero = smoothArray(graphData.hero, 3);
+        const sVill = smoothArray(graphData.vill, 3);
+        const sTie = smoothArray(graphData.tie, 3);
+
+        let maxVal = 1;
+        [...sHero, ...sVill].forEach(v => { if(v>maxVal) maxVal=v; });
+        maxVal *= 1.1; 
+
+        const plotLine = (data, color, width=2, shadow=false) => {
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            for(let i=0; i<data.length; i++) {
+                const x = (i / (data.length-1)) * w;
+                const y = h - ((data[i] / maxVal) * (h*0.9));
+                if(i===0) ctx.moveTo(x, y);
+                else {
+                    const prevX = ((i-1)/(data.length-1))*w;
+                    const prevY = h - ((data[i-1]/maxVal)*(h*0.9));
+                    const midX = (prevX+x)/2;
+                    const midY = (prevY+y)/2;
+                    ctx.quadraticCurveTo(prevX, prevY, midX, midY);
+                    if(i === data.length-1) ctx.lineTo(x, y);
+                }
+            }
+            if(shadow) {
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 10;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        };
+
+        ctx.beginPath();
+        ctx.moveTo(0, h);
+        for(let i=0; i<sTie.length; i++) {
+             const x = (i / (sTie.length-1)) * w;
+             const y = h - ((sTie[i] / maxVal) * (h*0.9));
+             ctx.lineTo(x, y);
+        }
+        ctx.lineTo(w, h);
+        ctx.fillStyle = "rgba(150,150,150,0.3)";
+        ctx.fill();
+
+        plotLine(sVill, "#ff0055", 4, true);
+        plotLine(sHero, "#00f0ff", 4, true);
+    }
+
+    resetTable();
+
+</script>
+</body>
+</html>
